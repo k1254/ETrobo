@@ -18,8 +18,9 @@
 #define GYRO_OFFSET      590 /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define LIGHT_WHITE	 500 /* 白色の光センサ値 */
 #define LIGHT_BLACK	 700 /* 黒色の光センサ値 */
-
-
+#define KP       0
+#define KI       0
+#define KD       0
 
 /* sample_c4マクロ */
 #define DEVICE_NAME       "ET0"  /* Bluetooth通信用デバイス名 */
@@ -27,8 +28,6 @@
 #define CMD_START         '1'    /* リモートスタートコマンド(変更禁止) */
 
 /* 関数プロトタイプ宣言 */
-//static int sonar_alert(void);
-//static void tail_control(signed int angle);
 static int remote_start(void);
 
 /* Bluetooth通信用データ受信バッファ */
@@ -76,6 +75,12 @@ TASK(TaskMain)
 	signed char turn;         /* 旋回命令 */
 	signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
 
+	signed char dif = 0;
+	signed char difInt = 0;
+	signed char difPrev = 0;
+	signed int  obj = (LIGHT_BLACK + LIGHT_WHITE)/2;
+	//signed char now = 0;
+
 	/**
 	 * Bluetooth通信用デバイス名の変更は、Bluetooth通信接続が確立されていない場合のみ有効です。
 	 * 通信接続確立時にはデバイス名は変更されません。(下記のAPIは何もしません)
@@ -103,7 +108,7 @@ TASK(TaskMain)
 	nxt_motor_set_count(NXT_PORT_B, 0); /* 右モータエンコーダリセット */
 	while(1)
 	{
-	  forward = 0; /* 前進命令 */
+	  forward = 50; /* 前進命令 */
 	  turn = 0;
 	  //forward = 50; /* 前進命令 */
 	  //	if (ecrobot_get_light_sensor(NXT_PORT_S3) <= (LIGHT_WHITE + LIGHT_BLACK)/2)
@@ -115,6 +120,24 @@ TASK(TaskMain)
 	  //		turn = -50; /* 左旋回命令 */
 	  //	}
 	  //
+
+	  dif = (float)( obj -  ecrobot_get_light_sensor(NXT_PORT_S3) ) / 220 * 127 ;
+	  //turn が 操作量
+	  //now = ecrobot_get_light_sensor(NXT_PORT_S3);   // 現在の光センサの値(制御量)を取得
+	  //dif = obj - now;                               // 目標値objと制御量nowの差を得る
+	  //difInt = difInt + dif;                         // 前回までの差の蓄積に今回の差を足す
+
+	  turn = dif * KP + difInt * KI + ( difPrev - dif ) * KD; // P、I、Dから実際の操作量を求める。
+	  display_goto_xy(0,0);
+	  display_string("dif:");
+	  display_int(dif,1);
+	  display_string("\nturn:");
+	  display_int(turn,1);
+	  display_update();
+	  //turn = 0;
+	  //difPrev = dif; // 今回の差を、次回のD制御に渡すためdifPrevに保管しておく
+
+
 	  	/* 倒立振子制御(forward = 0, turn = 0で静止バランス) */
 	  	balance_control(
 	  		(float)forward,					 /* 前後進命令(+:前進, -:後進) */
